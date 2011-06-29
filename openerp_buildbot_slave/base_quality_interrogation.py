@@ -1458,6 +1458,7 @@ class client_worker(object):
         self.log.debug("Executing module.lang.import %s", translate_in)
 
         feed_fn = None
+        wiz_id = None
 
         def old_style_feed(fname, fdata, lang):
             state = 'init'
