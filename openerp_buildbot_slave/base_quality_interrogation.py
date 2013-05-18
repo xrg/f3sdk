@@ -2355,9 +2355,10 @@ class client_worker(object):
         overwrite = True
         if args:
             if args[0] == '-f':
-                pass
+                args = args[1:]
             elif args[0] == '-N':
                 overwrite = False
+                args = args[1:]
 
         # TODO all langs
         for l in args:
