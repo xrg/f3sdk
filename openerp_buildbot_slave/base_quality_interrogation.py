@@ -733,6 +733,29 @@ class server_thread(threading.Thread):
         self.regparser_exc('XMLSyntaxError', re.compile(r'line ([0-9]+), column ([0-9]+)'),
                             lambda etype, ematch: { 'file-line': ematch.group(1), 'file-col': ematch.group(2)} )
 
+    def _decode_tb(self, traceb, sdic):
+        """ Decode a traceback and store info in sdic
+        """
+        tbre= re.compile(r'File "(.+)", line ([0-9]+)')
+        blines = []
+        if not traceb:
+            return
+        if isinstance(traceb, basestring):
+            blines = traceb.split('\n')
+        else:
+            blines = list(traceb[:])
+        blines.reverse()
+        for line in blines:
+            line = line.strip()
+            if line == '^':
+                continue
+            tm = tbre.match(line)
+            if tm:
+                sdic['module-file'] = tm.group(1)
+                sdic['file-line'] = tm.group(2)
+                break
+        return
+
     def dump_blame(self, exc=None, ekeys=None):
         """Dump blame information for sth that went wrong
 
@@ -1217,29 +1240,6 @@ class local_server_thread(server_thread):
                     ematch.group(3), csnip)
 
         return True
-
-    def _decode_tb(self, traceb, sdic):
-        """ Decode a traceback and store info in sdic
-        """
-        tbre= re.compile(r'File "(.+)", line ([0-9]+)')
-        blines = []
-        if not traceb:
-            return
-        if isinstance(traceb, basestring):
-            blines = traceb.split('\n')
-        else:
-            blines = list(traceb[:])
-        blines.reverse()
-        for line in blines:
-            line = line.strip()
-            if line == '^':
-                continue
-            tm = tbre.match(line)
-            if tm:
-                sdic['module-file'] = tm.group(1)
-                sdic['file-line'] = tm.group(2)
-                break
-        return
 
     def stop(self):
         if (not self.is_running) and (not self.proc):
