@@ -1357,6 +1357,19 @@ class RemLogHandler(object):
 
                 self.log.info(funct, *log_args)
 
+        if rec.exc_text:
+            try:
+                traceb, excs = rec.exc_text.rsplit('\n',1)
+                exc_type, exc_msg = excs.split(':',1)
+                exc_msg = reduce_homedir(exc_msg)
+                traceb = reduce_homedir(traceb)
+                sdic = { 'Exception type': exc_type, 'Exception': exc_msg,
+                        'Traceback': traceb }
+                self.parent._decode_tb(traceb, sdic)
+                self.parent.dump_blame(ekeys=sdic)
+            except Exception:
+                self.parent.log.debug("Cannot decode remote exception", exc_info=True)
+                pass
         tf = time.strftime('%Y-%m-%d %H:%M:%S')
         if rec.level > logging.DEBUG:
             self.log_sout.info('[%s] %s:%s:%s', tf, rec.levelname, rec.name, rec.msg)
