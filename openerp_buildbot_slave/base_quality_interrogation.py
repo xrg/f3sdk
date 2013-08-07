@@ -5,7 +5,7 @@
 #    OpenERP, Open Source Management Solution
 #    Copyright (C) 2004-2009 Tiny SPRL (<http://tiny.be>).
 #    Copyright (C) 2010-2011 OpenERP SA. (http://www.openerp.com)
-#    Copyright (C) 2011-2012 P. Christeas <xrg@hellug.gr>
+#    Copyright (C) 2011-2013 P. Christeas <xrg@hellug.gr>
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -2787,7 +2787,7 @@ class CmdPrompt(object):
                 'orm': ['help', 'obj_info', 'describe', 'comment',
                         'do', 'res_id',
                         'print', 'with',
-                        'table',
+                        'table', 'tag', 'touch',
                         'debug', 'exit',  ],
                 'orm_id': [ 'help', 'comment', 'do', 'print', 'describe', 'with', 'debug', 'exit', ],
                 }
@@ -3748,6 +3748,121 @@ class CmdPrompt(object):
             cols = None
         print_table(res, columns=cols)
         return
+
+    def _cmd_tag(self, *args):
+        """Attach ir.model.data tags to records of this model
+
+    Use it to "formalize" some records, as if they had come from XML data
+    files.
+
+    Usage:
+        BQI some.model> tag [-m module] [-s source] <id>:<xml-id> <id2>:<module.xml-id2> ...
+
+    Where:
+        module      Optionaly set the module for all records
+        source      the ir.model.data source indicator, default="xml"
+        id,id2...   Numeric ids of records
+        xml-id1,... Names for ir.model.data. If "-m" not specified, they must contain the
+                    module name, with a dot.
+
+    Example:
+        BQI some.model> tag 1:base.my_xml_id0 28:other_module.twenty_eight
+
+        """
+        if not self.cur_orm:
+            print "Must specify a model first!"
+            return
+
+        if not args:
+            print "Must specify at least one ID:xml-id pair!"
+            return
+
+        try:
+            module = False
+            source = 'xml'
+            imd_obj = self._client.orm_proxy('ir.model.data')
+            ncreated = 0
+            while args:
+                if args[0] == '-m':
+                    module = args[1]
+                    args = args[2:]
+                elif args[0].startswith('-m'):
+                    module = args[0][2:]
+                    args = args[1:]
+                elif args[0] == '-s':
+                    source = args[1]
+                    args = args[2:]
+                elif args[0].startswith('-s'):
+                    source = args[0][2:]
+                    args = args[1:]
+                else:
+                    if ':' not in args[0]:
+                        raise ValueError("Argument syntax error: no ':' in %s" % args[0])
+                    res_id, name = args[0].split(':', 1)
+                    args = args[1:]
+                    if '.' in name:
+                        cur_module, name = name.split('.', 1)
+                    else:
+                        cur_module = module
+                    if not cur_module:
+                        raise ValueError("Module not specified for id: %s" % name)
+
+                    res_id = int(res_id)
+
+                    imd_obj.create({'model': self.cur_orm, 'res_id': res_id,
+                                'module': cur_module, 'name': name, 'source': source})
+                    ncreated += 1
+
+            self._logger.info("Created %s tags in ir.model.data", ncreated)
+
+        except xmlrpclib.Fault, e:
+            if isinstance(e.faultCode, (int, long)):
+                e.faultCode = str(e.faultCode)
+            print 'xmlrpc exception: %s' % reduce_homedir( e.faultCode.strip())
+            print 'xmlrpc +: %s' % reduce_homedir(e.faultString.rstrip())
+            return
+        except RpcException, e:
+            print "Failed tag"
+            return
+        except Exception, e:
+            print "Failed tag:", e
+            return
+
+    def _cmd_touch(self, *args):
+        """Update the "write_date" of selected records to current timestamp
+
+    Use it to force data expiration or updates through the ir.model.data
+    mechanisms.
+
+    Example:
+        BQI some.model> touch 1 8 138 456
+
+    Which will update the mentioned IDs 
+        """
+        from datetime import datetime
+        if not self.cur_orm:
+            print "Must specify a model first!"
+            return
+        try:
+            ids = map(int, args)
+        except ValueError:
+            print "ids must integers!"
+            return
+
+        try:
+            self.cur_orm_obj.write(ids, {'write_date': str(datetime.now())[:19]})
+        except xmlrpclib.Fault, e:
+            if isinstance(e.faultCode, (int, long)):
+                e.faultCode = str(e.faultCode)
+            print 'xmlrpc exception: %s' % reduce_homedir( e.faultCode.strip())
+            print 'xmlrpc +: %s' % reduce_homedir(e.faultString.rstrip())
+            return
+        except RpcException, e:
+            print "Failed touch"
+            return
+        except Exception, e:
+            print "Failed touch:", e
+            return
 
     def _cmd_obj_info(self):
         """Obtain model info
