@@ -229,7 +229,10 @@ class ModuleSaver(object):
                             else:
                                 try:
                                     rfp = open(rfname, 'wb')
-                                    rfp.write(data[field_name])
+                                    dstr = data[field_name]
+                                    if isinstance(dstr, unicode):
+                                        dstr = dstr.encode('utf-8')
+                                    rfp.write(dstr)
                                     log.info("Data written to: %s", rfname)
                                 finally:
                                     if rfp:
