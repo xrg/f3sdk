@@ -240,6 +240,30 @@ class ModuleSaver(object):
                                 finally:
                                     if rfp:
                                         rfp.close()
+                        elif field.get('type', False) == 'xml':
+                            try:
+                                if field.text:
+                                    field.text = ''
+                                    xml_dirty = True
+                                newxml = etree.fromstring(data[field_name] or '')
+                                children = list(field)
+                                if children:
+                                    if (newxml != children[0]):
+                                        field.replace(children[0], newxml)
+                                        xml_dirty = True
+
+                                    # then, remove all spurious children
+                                    i = len(children) - 1
+                                    while i > 0:
+                                        field.remove(children[i])
+                                        i -= 1
+                                else:
+                                    field.append(newxml)
+                                    xml_dirty = True
+                            except Exception, e:
+                                log.warning("Failed to do type=xml comparison:", exc_info=True)
+                                field.text = data[field_name] or ''
+                                xml_dirty = True
                         else:
                             if (field.text != (data[field_name] or '')):
                                 field.text = data[field_name] or ''
