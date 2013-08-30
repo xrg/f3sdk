@@ -40,6 +40,8 @@ def custom_options(parser):
             help="Continue on errors")
     pgroup.add_option('--dry-run', default=False, action='store_true',
             help="Just print the results")
+    pgroup.add_option('--touch', default=False, action='store_true',
+            help="Update ir.model.data records with save date")
 
     pgroup.add_option("--addons-dir", help="Directory containing these addons")
     pgroup.add_option('--encoding', help="Output encoding")
@@ -52,7 +54,7 @@ options.allow_include = 3
 options._path_options.append('addons_dir')
 
 options.init(usage=help_usage, options_prepare=custom_options,
-        have_args=True, config_section=(),
+        config_section=(),
         config='~/.openerp/save_back.conf',
         defaults={'encoding': 'utf-8', })
 
@@ -76,6 +78,7 @@ class ModuleSaver(object):
         self._ready = False
         self.desc = {}
         self._proxies = {}
+        self._do_touch = options.opts.touch
 
     def init(self):
         mfname = '?'
@@ -180,9 +183,9 @@ class ModuleSaver(object):
                     continue
                 if (imds_data[imd]['date_update'] or imds_data[imd]['date_init']) \
                         < model_dates[imds_data[imd]['res_id']]:
-                    dirty_records[model][imd] = imds_data[imd]['res_id']
+                    dirty_records[model][imd] = imds_data[imd]['res_id'], model_dates[imds_data[imd]['res_id']]
                 else:
-                    dirty_records[model][imd] = False
+                    dirty_records[model][imd] = False, False
             del model_dates
 
         # Second pass, scan <record>s again and update them
@@ -191,7 +194,7 @@ class ModuleSaver(object):
                 if isinstance(rec, etree.CommentBase):
                     continue
                 if rec.tag == 'record':
-                    dirty_id = dirty_records[rec.get('model')].get(rec.get('id'), False)
+                    dirty_id, rec_date = dirty_records[rec.get('model')].get(rec.get('id'), (False, False))
                     if not dirty_id:
                         continue
                     model = rec.get('model')
@@ -241,6 +244,8 @@ class ModuleSaver(object):
                             if (field.text != (data[field_name] or '')):
                                 field.text = data[field_name] or ''
                                 xml_dirty = True
+                    if self._do_touch and not dry_run:
+                        self._imd_obj.write(imds_data[rec.get('id')]['id'], {'date_update': rec_date}, context=context)
                 else:
                     pass
                     # TODO tags: record act_window url workflow menuitem
