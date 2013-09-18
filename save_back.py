@@ -27,6 +27,7 @@ import sys
 import optparse
 import os
 import os.path
+#import re
 from lxml import etree
 from collections import defaultdict
 from itertools import chain
@@ -69,6 +70,7 @@ if not rpc.login():
 context = {}
 
 class ModuleSaver(object):
+    # _ws_re = re.compile(r'\s+')
     def __init__(self, module, addons_dir):
         self.module = module
         self.addons_dir = addons_dir
@@ -78,6 +80,7 @@ class ModuleSaver(object):
         self._ready = False
         self.desc = {}
         self._proxies = {}
+        self._model_fields = defaultdict(dict)
         self._do_touch = options.opts.touch
 
     def init(self):
@@ -95,6 +98,12 @@ class ModuleSaver(object):
         if model not in self._proxies:
             self._proxies[model] = rpc.RpcProxy(model)
         return self._proxies[model]
+
+    def get_model_field(self, model, field):
+        if field not in self._model_fields[model]:
+            res = self.get_proxy(model).fields_get([field,])
+            self._model_fields[model].update(res)
+        return self._model_fields[model][field]
 
     def _process_file(self, fname, dry_run=True):
         self.nfiles += 1
@@ -217,6 +226,36 @@ class ModuleSaver(object):
                         elif field.get('eval'):
                             pass
                         elif field.get('ref'):
+                            model_field = self.get_model_field(model, field_name)
+                            log.debug("Ref %s into %s: %s", field.get('ref'), field_name, data[field_name])
+                            if model_field['type'] == 'many2one':
+                                assert model_field['relation'], "No relation in %r" % model_field
+                                if data[field_name]:
+                                    refs = self._imd_obj.get_rev_ref(model_field['relation'], data[field_name][0])
+                                    assert refs[0] == data[field_name][0], "Garbage came: %r" % refs
+                                    found_ref = False
+                                    if refs[1]:
+                                        for r in refs[1]:
+                                            # try to locate a ref in our own modulw
+                                            if r.startswith(self.module + '.'):
+                                                found_ref = r[len(self.module)+1:]
+                                                break
+                                        else:
+                                            # pick first ref available
+                                            found_ref = refs[1][0]
+                                    if not found_ref:
+                                        log.warning("Record %s.#%d \"%s\" does not have an XML ID, please tag it!",
+                                                model_field['relation'], data[field_name][0], data[field_name][1])
+                                        # don't set dirty flag!
+                                    elif found_ref != field.get('ref'):
+                                        field.attrib['ref'] = found_ref
+                                        xml_dirty = True
+                                else:
+                                    # no data, remove ref
+                                    field.attrib.pop('ref')
+                                    xml_dirty = True
+                            else:
+                                raise NotImplementedError("Cannot resolve refs for %s" % model_field['type'])
                             pass
                         elif field.get('file'):
                             fname = field.get('file')
