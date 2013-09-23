@@ -3765,6 +3765,9 @@ class CmdPrompt(object):
         xml-id1,... Names for ir.model.data. If "-m" not specified, they must contain the
                     module name, with a dot.
 
+    After tagging, 'this' variable will hold a list of the numeric ids used in the
+    tags. Useful if you want to "touch" them.
+
     Example:
         BQI some.model> tag 1:base.my_xml_id0 28:other_module.twenty_eight
 
@@ -3782,6 +3785,7 @@ class CmdPrompt(object):
             source = 'xml'
             imd_obj = self._client.orm_proxy('ir.model.data')
             ncreated = 0
+            id_list = []
             while args:
                 if args[0] == '-m':
                     module = args[1]
@@ -3808,12 +3812,14 @@ class CmdPrompt(object):
                         raise ValueError("Module not specified for id: %s" % name)
 
                     res_id = int(res_id)
+                    id_list.append(res_id)
 
                     imd_obj.create({'model': self.cur_orm, 'res_id': res_id,
                                 'module': cur_module, 'name': name, 'source': source})
                     ncreated += 1
 
             self._logger.info("Created %s tags in ir.model.data", ncreated)
+            self._last_res = id_list
 
         except xmlrpclib.Fault, e:
             if isinstance(e.faultCode, (int, long)):
@@ -3836,15 +3842,23 @@ class CmdPrompt(object):
 
     Example:
         BQI some.model> touch 1 8 138 456
+        BQI some.model> do search( [(some-condition..)] )
+        BQI some.model> touch this
 
-    Which will update the mentioned IDs 
+    Which will update the mentioned IDs.
         """
         from datetime import datetime
         if not self.cur_orm:
             print "Must specify a model first!"
             return
         try:
-            ids = map(int, args)
+            if 'this' in args:
+                if not isinstance(self._last_res, list):
+                    print "Last result is not a list, invalid 'this'"
+                    return
+                ids = list(self._last_res) + [ int(id) for id in args if id != 'this']
+            else:
+                ids = map(int, args)
         except ValueError:
             print "ids must integers!"
             return
