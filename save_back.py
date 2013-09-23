@@ -224,7 +224,13 @@ class ModuleSaver(object):
                         if field.get('search'):
                             pass
                         elif field.get('eval'):
-                            pass
+                            model_field = self.get_model_field(model, field_name)
+                            if model_field['type'] in ('integer', 'char', 'float', 'boolean'):
+                                if field.get('eval') != repr(data[field_name]):
+                                    field.attrib['eval'] = repr(data[field_name])
+                                    xml_dirty = True
+                            else:
+                                log.warning("Cannot handle eval of: %s.%s[%s]", model, field_name, model_field['type'])
                         elif field.get('ref'):
                             model_field = self.get_model_field(model, field_name)
                             log.debug("Ref %s into %s: %s", field.get('ref'), field_name, data[field_name])
