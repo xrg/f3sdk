@@ -31,6 +31,7 @@ import os.path
 from lxml import etree
 from collections import defaultdict
 from itertools import chain
+import csv
 
 
 def custom_options(parser):
@@ -68,6 +69,30 @@ if not rpc.login():
 
 # context = {'lang': 'el_GR', }
 context = {}
+
+class UstrFeeder(object):
+    """ Wraps a file-like object with UTF-8 decoder
+    """
+    __slots__ = ('_fp', '_encoding')
+
+    def __init__(self, fp, encoding):
+        self._fp = fp
+        self._encoding = encoding
+
+    def _ustr(self, sstr):
+        if sstr:
+            return unicode(sstr, self._encoding)
+        else:
+            return ''
+
+    def next(self):
+        return map(self._ustr, self._fp.next())
+
+    def __getattr__(self, name):
+        return getattr(self._fp, name)
+
+    def __iter__(self):
+        return self
 
 class ModuleSaver(object):
     # _ws_re = re.compile(r'\s+')
@@ -169,10 +194,10 @@ class ModuleSaver(object):
             for imd in imdids:
                 if imd not in imds_data:
                     log.warning("Record \"%s.%s\" for model %s not in this db!",
-                                    module, imd, model)
+                                    self.module, imd, model)
                 elif imds_data[imd]['model'] != model:
                     log.error("Model mismatch for \"%s.%s\" xml=\"%s\", db=\"%s\"",
-                                    module, imd, model, imds_data[imd]['model'])
+                                    self.module, imd, model, imds_data[imd]['model'])
                     imds_data.pop(imd)
                 else:
                     model_ids[model].append(imds_data[imd]['res_id'])
@@ -325,6 +350,121 @@ class ModuleSaver(object):
             log.info("XML dirty, saving changes to %s", fp.name)
             return lambda fp: doc.write(fp, encoding='utf-8')
         return None
+
+    def _process_file_csv(self, fp, dry_run=True):
+        if not fp.name:
+            raise AttributeError("CSV files must have a filename!")
+        model_name = os.path.basename(fp.name)[:-4]
+        log.debug("CSV uses model: %s", model_name)
+        
+        reader = UstrFeeder(csv.reader(fp), 'utf-8')
+        headers = reader.next()
+        if not headers:
+            raise RuntimeError("No CSV headers line!")
+
+        if "id" not in headers:
+            raise RuntimeError("CSV must contain an 'id' column, for reference")
+
+        proxy = self.get_proxy(model_name)
+        model_fields = proxy.fields_get()
+
+        all_data = list(reader) # read all remaining lines!
+        
+        id_pos = headers.index('id')
+        imds = defaultdict(dict)
+        for i, d in enumerate(all_data):
+            imds[d[id_pos]]['csv_line'] = i
+        
+        # Read all ir.model.data records for our file and group by IMD id
+        for imd_rec in self._imd_obj.search_read([('module', '=', self.module),
+                        ('name', 'in', imds.keys())], context=context):
+            if imd_rec['model'] != model_name:
+                log.error("Model mismatch for \"%s.%s\" xml=\"%s\", db=\"%s\"",
+                                self.module, imd_rec['name'], model_name, imd_rec['model'])
+            imd_d = imds[imd_rec['name']]
+            imd_d['id'] = imd_rec.pop('res_id')
+            imd_d['imd'] = imd_rec
+
+        # Match ir.model.data entries against our <record> elements
+        model_ids = []
+        for imd, mdic in imds.items():
+            if 'id' in mdic:
+                model_ids.append(mdic['id'])
+            else:
+                log.warning("Record \"%s.%s\" for model %s not in this db!",
+                                self.module, imd, model_name)
+
+        # Read modification dates and keep records that have changed
+        model_dates = {}
+        for res in proxy.perm_read(model_ids, details=False):
+            model_dates[res['id']] = res['write_date'] or res['create_date']
+
+        dirty_records = []
+        for imd in imds.values():
+            if ('id' in imd) and (imd['id'] in model_dates):
+                if (imd['imd']['date_update'] or imd['imd']['date_init']) < model_dates[imd['id']]:
+                    dirty_records.append(imd['id'])
+                    imd['res_date'] = model_dates[imd['id']]
+        del model_dates
+
+        if not dirty_records:
+            log.debug("CSV has no changes")
+            return
+        res_d = proxy.export_data(dirty_records, headers)
+
+        header_ids = []
+        bool_fields = []
+        for i,h in enumerate(headers):
+            if h == 'id' or h.endswith(':id'):
+                header_ids.append(i)
+            elif model_fields.get(h, {}).get('type',False) == 'boolean':
+                bool_fields.append(i)
+
+        mod_prefix = self.module + '.'
+        dirty_imds = []
+        for line in res_d.get('datas',[]):
+            for i in header_ids:
+                if i <= len(line) and line[i] and line[i].startswith(mod_prefix):
+                    line[i] = line[i][len(mod_prefix):]
+
+            for i in bool_fields:
+                # Note: here we map "None" to False!
+                if i <= len(line):
+                    if line[i] and line[i] != 'False':
+                        line[i] = '1'
+                    else:
+                        line[i] = '0'
+
+            imd = imds[line[id_pos]]
+            if all_data[imd['csv_line']] != line:
+                all_data[imd['csv_line']] = line
+                dirty_imds.append(line[id_pos])
+
+        def __to_utf8(ss):
+            if isinstance(ss, unicode):
+                return ss.encode('utf-8')
+            else:
+                return ss
+
+        def __save_csv(fp):
+            writer = csv.writer(fp)
+            writer.writerow(map(__to_utf8, headers))
+            for line in all_data:
+                writer.writerow(map(__to_utf8, line))
+
+            for d in dirty_imds:
+                imd = imds[d]
+                self._imd_obj.write(imd['imd']['id'], 
+                        {'date_update': imd['res_date']}, context=context)
+            return True
+
+        if dirty_imds and dry_run:
+            log.info("CSV dirty: %s, but no write. IMDs changed: %r", fp.name, dirty_imds)
+        elif dirty_imds:
+            log.info("CSV dirty, saving changes to %s", fp.name)
+            return __save_csv
+        return None
+
 try:
     nmodules = 0
     nfailures = 0
