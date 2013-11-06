@@ -312,13 +312,30 @@ class ModuleSaver(object):
                                         rfp.close()
                         elif field.get('type', False) == 'xml':
                             try:
-                                if field.text:
-                                    field.text = ''
-                                    xml_dirty = True
                                 newxml = etree.fromstring(data[field_name] or '')
                                 children = list(field)
-                                if children:
+                                if newxml.tag == 'data' and not (data[field_name] or '')[:30].strip().startswith('<data>'):
+                                    # it was multiple elements, that etree parser wrapped with a <data> one.
+                                    new_elems = list(newxml)
+                                    last_tail = None
+                                    nc = None
+                                    for c in children:
+                                        last_tail = c.tail
+                                        if not new_elems:
+                                            field.remove(c)
+                                            continue
+                                        nc = new_elems.pop(0)
+                                        if (nc != c):
+                                            field.replace(c, nc)
+                                            xml_dirty = True
+                                    for nc in new_elems:
+                                        field.append(nc)
+                                        xml_dirty = True
+                                    if last_tail and nc:
+                                        nc.tail = last_tail
+                                elif children:
                                     if (newxml != children[0]):
+                                        newxml.tail = children[0].tail
                                         field.replace(children[0], newxml)
                                         xml_dirty = True
 
@@ -329,12 +346,18 @@ class ModuleSaver(object):
                                         i -= 1
                                 else:
                                     field.append(newxml)
+                                    # try to align at the same indent as parent elem:
+                                    if field.text.endswith('    '):
+                                        newxml.tail = field.text[:-4]
+                                    else:
+                                        newxml.tail = field.text
                                     xml_dirty = True
                             except Exception, e:
                                 log.warning("Failed to do type=xml comparison:", exc_info=True)
                                 field.text = data[field_name] or ''
                                 xml_dirty = True
                         else:
+                            assert isinstance(data[field_name], basestring), "%s: %r" %(field_name, data[field_name])
                             if (field.text != (data[field_name] or '')):
                                 field.text = data[field_name] or ''
                                 xml_dirty = True
