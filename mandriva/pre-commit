@@ -1,0 +1,120 @@
+#!/bin/bash
+#
+
+if [ -n "$NO_LINT" ] ; then
+        exit 0
+fi
+
+#USAGE=cd_to_toplevel SUBDIRECTORY_OK=y . $(git --exec-path)/git-sh-setup  
+if [ -r $GIT_DIR/info/pre-commit.conf ] ; then
+    . $GIT_DIR/info/pre-commit.conf
+fi
+
+if [ -n "$GIT_DIR" ] && [ -d "$GIT_DIR" ] ; then
+    GITLINT_FAILED=$GIT_DIR/lint-failed
+fi
+
+
+fparse() {
+    let -i ERRORS=0
+    let -i WARNINGS=0
+    while read FNAME ; do
+	case $(basename "$FNAME") in
+	*.py)
+		pyflakes "$FNAME" ; EXIT=$?
+		
+		if [ "$EXIT" == 1 ]; then
+			echo "Pyflakes failed for: $FNAME"
+			(( ERRORS++ ))
+		elif [ "$EXIT" == 3 ] ; then
+			echo "Please correct $FNAME"
+			(( WARNINGS ++ ))
+			if [ -n "$GITLINT_FAILED" ] ; then
+			    echo "$FNAME" >> $GITLINT_FAILED
+			fi
+		fi
+		if git --no-pager grep --cached -HnF '*-*' "$FNAME" ; then
+		    echo "Not ready to commit"
+		    (( ERRORS++ ))
+		fi
+		if [ "$ALLOW_PYTABS" != "y" ] && grep -HnP -m 10 '^ *\t' "$FNAME" ; then
+			echo "You used tabs in $FNAME. Please expand them"
+			(( ERRORS++ ))
+		fi
+	;;
+	*.xml)
+		if  git --no-pager grep --cached -HnF '*-*' "$FNAME" ; then
+		    echo "Not ready to commit"
+		    (( ERRORS++ ))
+		fi
+		if ! xmllint --noout --nowarning "$FNAME" ; then
+			echo "XmlLint failed for: $FNAME"
+			(( ERRORS++ ))
+		fi
+	;;
+	*.rml)
+                if head -n1 "$FNAME" | grep '^\{' > /dev/null ; then
+                    # skip jinja2/django templates
+                    true
+                elif [ "$SKIP_RML_LINT" == 'y' ] ; then
+                    true
+                else
+                    # only lint pure xml files
+		if ! xmllint --noout --nowarning "$FNAME" ; then
+			echo "XmlLint failed for: $FNAME"
+			(( ERRORS++ ))
+		fi
+                fi
+	;;
+	*.po)
+		msgfmt -c "$FNAME" -o /dev/null || (( ERRORS++ ))
+	;;
+	*.pot)
+		msgfmt -c "$FNAME" -o /dev/null || (( ERRORS++ ))
+	;;
+	*.yml)
+		if  git --no-pager grep --cached -HnF '*-*' "$FNAME" ; then
+		    echo "Not ready to commit"
+		    (( ERRORS++ ))
+		fi
+		if [ "$ALLOW_PYTABS" != "y" ] && grep -HnP -m 10 '^ *\t' "$FNAME" ; then
+			echo "You used tabs in $FNAME. Please expand them"
+			(( ERRORS++ ))
+		fi
+	;;
+	*.png)
+		true
+	;;
+	*.c|*.cpp|*.c++|*.cc|*.h|*.js|*.html)
+		if  git --no-pager grep --cached -HnF '*-*' "$FNAME" ; then
+		    echo "Not ready to commit"
+		    (( ERRORS++ ))
+		fi
+	;;
+	*.zip)
+	    if ! unzip -t -q "$FNAME" ; then
+		(( ERRORS++ ))
+	    fi
+	;;
+	*.jar)
+	    if ! unzip -t -q "$FNAME" ; then
+		(( ERRORS++ ))
+	    fi
+	;;
+	*)
+		echo "No lint for $FNAME"
+		;;
+	esac
+	
+    done
+
+    if (( ERRORS > 0 )) ; then
+	echo "Found $ERRORS errors, $WARNINGS warnings"
+	exit 1
+    fi
+}
+
+git diff --cached --name-only  --diff-filter=AM | fparse
+
+
+#eof
