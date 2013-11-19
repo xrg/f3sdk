@@ -18,6 +18,7 @@ Description:
 	
 Parameters:
 	-h         Display this help
+    -C         Create language catalogs, if missing
 	-l <lang>  Operate only for language <lang>
 	-f	   Force update, even when .po is newer than .pot
 	<addons-path>  Manually specify addons path(s)
@@ -38,20 +39,25 @@ USE_LANG='*'
 FORCE=no
 DO_CREATE=
 
-if [ "$1" == "-f" ] ; then
-	FORCE=yes
-	shift 1
-fi
-
-if [ "$1" == "-C" ] ; then
-	DO_CREATE=y
-	shift 1
-fi
-
-if [ "$1" == "-l" ] ; then
-	USE_LANG="$2"
-	shift 2
-fi
+while [  $# -gt 0 ] ; do
+    case "$1" in
+    "-f")
+        FORCE=yes
+        shift 1
+        ;;
+    "-C")
+        DO_CREATE=y
+        shift 1
+        ;;
+    "-l")
+        USE_LANG="$2"
+        shift 2
+        ;;
+    *)
+        break
+        ;;
+    esac
+done
 
 declare -a ADDONS_PATH
 
