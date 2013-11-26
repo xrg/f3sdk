@@ -357,10 +357,19 @@ class ModuleSaver(object):
                                 field.text = data[field_name] or ''
                                 xml_dirty = True
                         else:
-                            assert isinstance(data[field_name], basestring), "%s: %r" %(field_name, data[field_name])
-                            if (field.text != (data[field_name] or '')):
-                                field.text = data[field_name] or ''
-                                xml_dirty = True
+                            if isinstance(data[field_name], (int, float)):
+                                # In case it's a number allow cast to text, just to preserve XML
+                                # but if it is different value, convert to eval=".."
+                                txt = repr(data[field_name])
+                                if field.text != txt:
+                                    field.text = ''
+                                    field.attrib['eval'] = txt
+                                    xml_dirty = True
+                            else:
+                                assert isinstance(data[field_name], basestring), "%s: %r" %(field_name, data[field_name])
+                                if (field.text != (data[field_name] or '')):
+                                    field.text = data[field_name] or ''
+                                    xml_dirty = True
                     if self._do_touch and not dry_run:
                         self._imd_obj.write(imds_data[rec.get('id')]['id'], {'date_update': rec_date}, context=context)
                 else:
