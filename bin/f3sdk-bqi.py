@@ -2431,7 +2431,7 @@ class client_worker(object):
         server.clear_context()
         module = None
         ltype = None
-        test_mode = False
+        imp_mode = 'init'
         noupdate = False
         model = None
 
@@ -2446,7 +2446,10 @@ class client_worker(object):
                 noupdate = True
                 args = args[1:]
             elif args[0] == '-t':
-                test_mode = True
+                imp_mode = 'test'
+                args = args[1:]
+            elif args[0] == '-u':
+                imp_mode = 'update'
                 args = args[1:]
             elif args[0] == '-d':
                 model = args[1]
@@ -2511,11 +2514,11 @@ class client_worker(object):
                 if not ir_model_ids:
                     raise ClientException("Cannot locate ORM model %s for import!" % model2)
 
-            self.log.info("Trying to import %s as %s for %s %s%s", reduce_homedir(datfile),
-                        ltype2, module2, (test_mode and 'in test mode ') or '',
+            self.log.info("Trying to import %s as %s for %s in %s mode %s", reduce_homedir(datfile),
+                        ltype2, module2, imp_mode,
                         (model2 and 'model ' + model2) or '')
 
-            if test_mode:
+            if imp_mode == 'test':
                 server.state_dict['severity'] = 'test'
             else:
                 server.state_dict['severity'] = 'warning'
@@ -2534,7 +2537,7 @@ class client_worker(object):
             bmi_obj = self.orm_proxy('base_module_record.import')
             wiz_id = bmi_obj.create( {'module_id': module_ids[0],
                      'format': ltype2,
-                     'mode': (test_mode and 'test') or 'init',
+                     'mode': imp_mode,
                      'model_id': (model and ir_model_ids[0]) or False,
                      'mdata': data,
                      'noupdate': noupdate
@@ -3955,7 +3958,7 @@ class CmdPrompt(object):
         """Import a data file, through the /base_module_import/ wizard.
 
     Usage:
-        import [-m <module>] [-l {xml|csv|yaml}] [-t] [-U]
+        import [-m <module>] [-l {xml|csv|yaml}] [-t|-u] [-U]
                 [-d <model>]  data-file.ext
 
     Arguments:
@@ -3964,6 +3967,7 @@ class CmdPrompt(object):
         -l          Type of import file. Can be auto-detected from data
                     file extension
         -t          Test data mode. Otherwize "initial data" mode.
+        -u          Update mode. May skip some XML records with "noupdate=1"
         -U          No Update. Activate that flag for the data
         -d <model>  The model to import against. Needed for csv files,
                     unless the filename matches (eg. 'ir.model.access.csv')
