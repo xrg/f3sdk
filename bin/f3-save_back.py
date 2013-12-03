@@ -401,12 +401,14 @@ class ModuleSaver(object):
         model_fields = proxy.fields_get()
 
         all_data = list(reader) # read all remaining lines!
-        
+
         id_pos = headers.index('id')
         imds = defaultdict(dict)
         for i, d in enumerate(all_data):
+            if not d:
+                continue
             imds[d[id_pos]]['csv_line'] = i
-        
+
         # Read all ir.model.data records for our file and group by IMD id
         for imd_rec in self._imd_obj.search_read([('module', '=', self.module),
                         ('name', 'in', imds.keys())], context=context):
