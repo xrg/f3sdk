@@ -14,7 +14,7 @@
 %define __find_provides   %{u2p:%{_builddir}}/openerp-{{rel.version }}/mandriva/find-provides.sh
 %define __find_requires   %{u2p:%{_builddir}}/openerp-{{rel.version }}/mandriva/find-requires.sh
 
-Name:   {{name}}
+Name:           {{name}}
 License:        AGPLv3
 Group:          Databases
 Summary:        Addons for OpenERP/F3
@@ -57,7 +57,9 @@ cp -ar ./* $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
 {% if modules.no_dirs %}
 pushd $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
 {% for tdir in modules.no_dirs %}
+    {% if tdir %}
         rm -rf {{ tdir }}
+    {% endif %}
 {% endfor %}
 popd
 {% endif %}
