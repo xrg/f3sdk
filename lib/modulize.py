@@ -127,13 +127,15 @@ class release:
                 log.info("Got version from file: v: %s (%s) , r: %s", self.version,self.subver,self.release)
             except Exception:
                 log.exception("Get release exception: ")
+                raise
         else:
             try:
                 p = subprocess.Popen(["git", "describe", "--tags"], bufsize=4096, \
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, close_fds=True)
                 (child_stdout, child_stdin) = (p.stdout, p.stdin)
                 rescode = p.wait()
-                if rescode != 0 : raise subprocess.CalledProcessError, rescode
+                if rescode != 0 :
+                    raise subprocess.CalledProcessError(rescode, 'git describe --tags')
                 res= child_stdout.read()
                 #sys.stderr.write("Git version: %s\n" % res)
                 resc = res.split('-')
@@ -155,6 +157,7 @@ class release:
                 log.info("Got version from git: v: %s (%s) , r: %s", self.version,self.subver,self.release)
             except Exception:
                 log.exception("Get release exception:")
+                raise
 
         self.mainver = '.'.join(self.version.split('.')[:2])
         self.extrarel = ''
