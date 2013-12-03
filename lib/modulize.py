@@ -67,6 +67,8 @@ parser.add_option("-g", "--gitver",
                   help="Reads the version information from file",
                   metavar = "GITVER_FILE")
 
+parser.add_option('-t', '--template',
+                  help="Jinja2 template to use")
 parser.add_option("-C", "--rclass", dest="rclass",
                   help="use RCLASS release class", metavar="RCLASS")
 
@@ -317,7 +319,7 @@ try:
     if options.server_version is not None:
         rel.mainver = options.server_version
     mod_dirs = InfoDirList(options, args, rel)
-    tmpl = env.get_template(sys_info.target_platform + '.tmpl.spec')
+    tmpl = env.get_template(options.template or 'default.spec')
     res = tmpl.render(system=sys_info, args=args, rel=rel, modules=mod_dirs,
                 release_class=options.rclass or 'pub',
                 autonomous=options.autonomous,

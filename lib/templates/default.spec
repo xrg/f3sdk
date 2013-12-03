@@ -1,0 +1,1 @@
+{% extends  system.target_platform + '.tmpl.spec' %}
