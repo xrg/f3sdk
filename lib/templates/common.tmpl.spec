@@ -11,9 +11,6 @@
 
 %define release_class {{ release_class }}
 
-%define __find_provides   %{u2p:%{_builddir}}/openerp-{{rel.version }}/mandriva/find-provides.sh
-%define __find_requires   %{u2p:%{_builddir}}/openerp-{{rel.version }}/mandriva/find-requires.sh
-
 Name:           {{name}}
 License:        AGPLv3
 Group:          Databases
@@ -74,7 +71,13 @@ Version: {{ module.info.version }}
 {% endif %}
 Group: Databases
 Summary: {{ module.info.name }}
+AutoReqProv:       no
+Requires: python(abi) = %pyver
 Requires: openerp-server {% if rel.mainver %}>= {{ rel.mainver }}{% endif %}
+
+{% if name != 'openerp-addons' %}
+Provides: openerp-addons-{{ module.name }}
+{% endif %}
 
 {% if module.info.depends %}
 {{ module.get_depends() }}
