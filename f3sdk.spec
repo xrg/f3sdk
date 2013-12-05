@@ -31,7 +31,7 @@ developer's workstation.
 cat > ./bin/f3-modulize << EOF
 #!/bin/bash
 
-exec %{f3sdkdir}/modulize.py "$$@"
+exec %{f3sdkdir}/modulize.py "\$@"
 EOF
 
 
