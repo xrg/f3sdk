@@ -6,8 +6,8 @@
 %define cd_if_modular cd %{name}-%{version}
 {% endif %}
 
-%{?!pyver: %define pyver %(python -c 'import sys;print(sys.version[0:3])')}
-%{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
+%{!?pyver: %global pyver %(python -c 'import sys;print(sys.version[0:3])')}
+%{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
 
 %define release_class {{ release_class }}
 
