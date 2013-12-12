@@ -1,18 +1,24 @@
+{% block prologue %}
 {% if autonomous %}
-%define git_repo {{ name }}
-%define git_head HEAD
-%define cd_if_modular
+%define git_repo {{ git_repo or name }}
+%define git_head {{ git_head or 'HEAD' }}
+{% if git_source_subpath %}
+%define git_source_subpath {{ git_source_subpath }}
+{% endif %}
+%define cd_if_modular :
 {% else %}
 %define cd_if_modular cd %{name}-%{version}
 {% endif %}
+{% endblock %}
 
 %{!?pyver: %global pyver %(python -c 'import sys;print(sys.version[0:3])')}
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
 
 %define release_class {{ release_class }}
 
+{% block definitions %}
 Name:           {{name}}
-License:        AGPLv3
+License:        {{ license or 'AGPLv3' }}
 Group:          Databases
 Summary:        Addons for OpenERP/F3
 {% if autonomous %}
@@ -30,26 +36,39 @@ URL:            {{ project_url or 'http://openerp.hellug.gr' }}
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}
 BuildArch:      noarch
 
+{% endblock %}
+
+{% block main_description %}
+{# This description won't be used anyway #}
 %description
 Addon modules for OpenERP
+{% endblock %}
+
+{% block extra_modules %}
+{% endblock %}
 
 %prep
+{% block prep %}
 {% if autonomous %}
 %git_get_source
 %setup -q
 {% else %}
 cd %{name}-%{version}
 {% endif %}
+{% endblock %}
 
 %build
 %{cd_if_modular}
+{% block build %}
+{% endblock %}
 
 %install
 %{cd_if_modular}
 rm -rf $RPM_BUILD_ROOT
 
+{% block install %}
 install -d $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons
-cp -ar ./* $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
+cp -ar {{ git_source_subpath or addons_subpath or '.' }}/* $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
 
 {% if modules.no_dirs %}
 pushd $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
@@ -60,6 +79,9 @@ pushd $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
 {% endfor %}
 popd
 {% endif %}
+{% endblock %}
+{% block extra_install %}
+{% endblock %}
 
 {% for module in modules %}
 {% if not module.installable %}
@@ -101,6 +123,9 @@ URL: {{ module.get_website() }}
 %{python_sitelib}/openerp-server/addons/{{ module.name }}
 
 {% endfor %}
+
+{% block extra_files %}
+{% endblock %}
 
 {% if autonomous %}
 %changelog -f %{_sourcedir}/%{name}-changelog.gitrpm.txt
