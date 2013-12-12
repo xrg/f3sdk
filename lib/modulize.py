@@ -69,6 +69,8 @@ parser.add_option("-g", "--gitver",
 
 parser.add_option('-t', '--template',
                   help="Jinja2 template to use")
+parser.add_option('--template-dir',
+                  help="Jinja2 template directory, of current project")
 parser.add_option("-C", "--rclass", dest="rclass",
                   help="use RCLASS release class", metavar="RCLASS")
 
@@ -310,8 +312,12 @@ class InfoDirList(object):
         return len(self._info_dirs)
 
 try:
+    fspath = []
+    if options.template_dir:
+        fspath.append(os.path.expanduser(options.template_dir))
     our_dir = os.path.abspath(os.path.dirname(sys.argv[0]))
-    floader = jinja2.FileSystemLoader(os.path.join(our_dir, 'templates'))
+    fspath.append(os.path.join(our_dir, 'templates'))
+    floader = jinja2.FileSystemLoader(fspath)
     env = jinja2.Environment(loader=floader, trim_blocks=True,
                 extensions=['jinja2.ext.do', 'jinja2.ext.loopcontrols', 'jinja2.ext.with_'])
     sys_info = SysInfo(options)
