@@ -38,6 +38,7 @@ import jinja2
 from jinja2.utils import contextfunction
 import platform
 import logging
+from collections import defaultdict
 
 
 from optparse import OptionParser
@@ -205,6 +206,7 @@ class InfoDir(object):
     def __init__(self, info, parent):
         self.__info = info
         self.__parent = parent
+        self.rpm = {}
 
     @property
     def name(self):
@@ -234,6 +236,74 @@ class InfoDir(object):
         if '- ' in ws:
             ws = ws.split('- ')[0].strip()
         return ws
+
+    def custom_scan(self, tdir):
+        """Check if that module offers any custom build instructions
+        """
+        custom_spec = self.__info['info'].get('packaging', {}).get('rpm', False)
+        if custom_spec:
+            csparts = custom_spec.split('/')
+            cspath = os.path.join(tdir, *csparts)
+            log.debug("Reading custom spec: %s", cspath)
+            fp = None
+            line_no = 0
+            rpmsec = defaultdict(list)
+            try:
+                cur_section = None
+                space_lines = []
+                fp = open(cspath, 'rb')
+                for line in fp:
+                    line_no += 1
+                    if not line.strip():
+                        # empty line, keep it
+                        space_lines.append(line)
+                        continue
+                    if line.startswith(('%define', '%global')):
+                        if cur_section and cur_section != 'globals':
+                            raise Exception("spec definitions are not allowed after sections, file %s:%s" \
+                                    % (cspath, line_no))
+                        elif not cur_section:
+                            cur_section = 'globals'
+                            space_lines = []
+                    elif line.startswith('#'):
+                        if not cur_section:
+                            cur_section = 'globals'
+                            space_lines = []
+                    elif line.rstrip() in ('%prep', '%build', '%install', '%files', '%description', '%pre', '%post'):
+                        cur_section = line.rstrip()[1:]
+                        space_lines = []
+                        continue
+                    elif line.startswith(('%package', '%description', '%files', '%pre', '%post')):
+                        cur_section = 'extrapkgs'
+                        space_lines = []
+                        if cur_section in rpmsec:
+                            rpmsec[cur_section].append('\n')
+                        # go on, include the line in "extrapkgs" section
+
+                    elif cur_section == 'globals':
+                        # Normal text only goes to "main" section
+                        cur_section = 'main'
+                        log.debug("normal line: %s", line)
+                        space_lines = []
+                    else:
+                        if not cur_section:
+                            raise ValueError("Invalid line '%s..' before any section" % line[:10])
+
+                    if space_lines:
+                        rpmsec[cur_section] += space_lines
+                        space_lines = []
+                    rpmsec[cur_section].append(line)
+
+                # join lines and transfer them to self.rpm
+                for sec, lines in rpmsec.items():
+                    if sec in self.rpm:
+                        self.rpm[sec] += ''.join(lines)
+                    else:
+                        self.rpm[sec] = ''.join(lines)
+            finally:
+                if fp is not None:
+                    fp.close()
+
 
 class InfoDirList(object):
     def __init__(self, options, args, rel):
@@ -276,6 +346,8 @@ class InfoDirList(object):
             elif not (options.skip_unnamed or info.get('name', False)):
                 # bail out when an unnamed module exists
                 raise Exception("Addon %s should specify a name for summary!" % tdir)
+            elif not info.get('name', False):
+                continue
             else:
                 ext_deps = ''
                 # TODO more like a list, cross-distro
@@ -284,9 +356,10 @@ class InfoDirList(object):
                         #if True:
                         #    raise ValueError("Deprecated ext_depends keyword found")
                         ext_deps += get_ext_depends(info['ext_depends'])
-                        
+
                     if 'external_dependencies' in info:
                         ext_deps += get_extern_depends(info['external_dependencies'])
+
                 except ValueError, e:
                     sys.stderr.write("Cannot use %s module: %s\n" % (tdir, e))
                     self.no_dirs.append(bdir)
@@ -296,17 +369,16 @@ class InfoDirList(object):
                     if isinstance(info.get(field, False), str):
                         info[field] = info[field].decode('utf-8')
 
-                self._info_dirs.append({'dir': bdir.decode('utf-8'), 'info': info, 'ext_deps': ext_deps})
+                idir = InfoDir({'dir': bdir.decode('utf-8'), 'info': info, 'ext_deps': ext_deps}, self)
+                idir.custom_scan(tdir)
+                self._info_dirs.append(idir)
 
         # compute all the names
-        self.allnames = set(map(lambda i: i['dir'], self._info_dirs))
+        self.allnames = set(map(lambda i: i.name, self._info_dirs))
 
 
     def __iter__(self):
-        for info in self._info_dirs:
-            if not info['info'].get('name', False):
-                continue
-            yield InfoDir(info, self)
+        return iter(self._info_dirs)
 
     def __len__(self):
         return len(self._info_dirs)

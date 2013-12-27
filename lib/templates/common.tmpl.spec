@@ -16,6 +16,10 @@
 
 %define release_class {{ release_class }}
 
+{% for module in modules %}
+{{ module.rpm.globals }}
+{% endfor %}
+
 {% block definitions %}
 Name:           {{name}}
 License:        {{ license or 'AGPLv3' }}
@@ -35,8 +39,11 @@ Release:        %mkrel {{ rel.extrarel }}
 URL:            {{ project_url or 'http://openerp.hellug.gr' }}
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}
 BuildArch:      noarch
-
 {% endblock %}
+{% for module in modules %}
+{{ module.rpm.main }}
+{% endfor %}
+
 
 {% block main_description %}
 {# This description won't be used anyway #}
@@ -56,11 +63,18 @@ Addon modules for OpenERP
 cd %{name}-%{version}
 {% endif %}
 {% endblock %}
+{% for module in modules %}
+{{ module.rpm.prep }}
+{% endfor %}
 
 %build
 %{cd_if_modular}
 {% block build %}
 {% endblock %}
+{% for module in modules %}
+{{ module.rpm.build }}
+{% endfor %}
+
 
 %install
 %{cd_if_modular}
@@ -80,6 +94,9 @@ pushd $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
 popd
 {% endif %}
 {% endblock %}
+{% for module in modules %}
+{{ module.rpm.install }}
+{% endfor %}
 {% block extra_install %}
 {% endblock %}
 
@@ -113,19 +130,47 @@ Vendor: {{module.info.author }}
 {% if module.info.website %}
 URL: {{ module.get_website() }}
 {% endif %}
+{{ module.rpm.package }}
+
 
 %description {{ module.name }}
 {{ module.info.description or module.info.name }}
+{{ module.rpm.description }}
 
+{% if module.rpm.pre %}
+%pre {{ module.name }}
+{{ module.rpm.pre }}
+{% endif %}
+
+{% if module.rpm.preun %}
+%preun {{ module.name }}
+{{ module.rpm.preun }}
+{% endif %}
+
+{% if module.rpm.post %}
+%post {{ module.name }}
+{{ module.rpm.post }}
+{% endif %}
+
+{% if module.rpm.postun %}
+%postun {{ module.name }}
+{{ module.rpm.postun }}
+{% endif %}
 
 %files {{ module.name }}
 %defattr(-,root,root)
 %{python_sitelib}/openerp-server/addons/{{ module.name }}
+{{ module.rpm.files }}
 
 {% endfor %}
 
 {% block extra_files %}
 {% endblock %}
+
+{% for module in modules %}
+{# new iteration, may include uninstallable modules #}
+{{ module.rpm.extrapkgs }}
+{% endfor %}
 
 {% if autonomous %}
 %changelog -f %{_sourcedir}/%{name}-changelog.gitrpm.txt
