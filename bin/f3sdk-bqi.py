@@ -90,7 +90,9 @@ def ustr(value):
     raise UnicodeError('unable to convert %r' % (value,))
 
 def pretty_repr(val):
-    if json is not None:
+    if isinstance(val, basestring):
+        res = val
+    elif json is not None:
         res = json.dumps(val, skipkeys=True, ensure_ascii=True, indent=4)
     elif isinstance(val, (list, tuple)):
         res = ''
