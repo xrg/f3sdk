@@ -73,14 +73,14 @@ Addon modules for OpenERP
 
 
 %install
-rm -rf $RPM_BUILD_ROOT
+[ -n "%{buildroot}" ] && rm -rf %{buildroot}
 
 {% block install %}
-install -d $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons
-cp -ar {{ git_source_subpath or addons_subpath or '.' }}/* $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
+install -d %{buildroot}/%{python_sitelib}/openerp-server/addons
+cp -ar {{ git_source_subpath or addons_subpath or '.' }}/* %{buildroot}/%{python_sitelib}/openerp-server/addons/
 
 {% if modules.no_dirs %}
-pushd $RPM_BUILD_ROOT/%{python_sitelib}/openerp-server/addons/
+pushd %{buildroot}/%{python_sitelib}/openerp-server/addons/
 {% for tdir in modules.no_dirs %}
     {% if tdir %}
         rm -rf {{ tdir }}
