@@ -5,9 +5,6 @@
 {% if git_source_subpath %}
 %define git_source_subpath {{ git_source_subpath }}
 {% endif %}
-%define cd_if_modular :
-{% else %}
-%define cd_if_modular cd %{name}-%{version}
 {% endif %}
 {% endblock %}
 
@@ -60,7 +57,7 @@ Addon modules for OpenERP
 %git_get_source
 %setup -q
 {% else %}
-cd %{name}-%{version}
+%setup -T -D -n %{name}-%{version}
 {% endif %}
 {% endblock %}
 {% for module in modules %}
@@ -68,7 +65,6 @@ cd %{name}-%{version}
 {% endfor %}
 
 %build
-%{cd_if_modular}
 {% block build %}
 {% endblock %}
 {% for module in modules %}
@@ -77,7 +73,6 @@ cd %{name}-%{version}
 
 
 %install
-%{cd_if_modular}
 rm -rf $RPM_BUILD_ROOT
 
 {% block install %}
