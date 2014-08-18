@@ -3651,7 +3651,7 @@ class CmdPrompt(object):
             return
         aexpr = ' '.join(args)
         res = self._eval_local(aexpr)
-        print "Result:"
+        print "Result:", type(res)
         print pretty_repr(res)
 
     def _cmd_with(self, *args):
