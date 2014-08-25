@@ -2707,6 +2707,19 @@ class CmdPrompt(object):
                 self._logger.debug('Cannot list methods:', exc_info=True)
                 return []
 
+    def _complete_sudo_cmd(self, text, state):
+        if ' ' in text:
+            user, text = text.split(' ',1)
+            pos = self._complete_do_cmd(text, state)
+            if pos:
+                return [ user + ' ' + p for p in pos]
+        else:
+            pos = []
+            for s in self._sudo_users_history:
+                if s.startswith(text):
+                    pos.append(s)
+            return pos
+
     def _complete_print(self, text, state):
         pos = []
         if self._last_res:
@@ -2793,7 +2806,7 @@ class CmdPrompt(object):
                         'import', 'login', 'describe', 'comment',
                         'subscription', 'report', 'rpclist', 'objgraph', ],
                 'orm': ['help', 'obj_info', 'describe', 'comment',
-                        'do', 'res_id',
+                        'do', 'sudo', 'res_id',
                         'print', 'with',
                         'table', 'tag', 'touch',
                         'debug', 'exit',  ],
@@ -2811,6 +2824,7 @@ class CmdPrompt(object):
                     'orm': _complete_orm_cmd,
                     'describe': _complete_describe_cmd,
                     'do': _complete_do_cmd,
+                    'sudo': _complete_sudo_cmd,
                     'table': [], # TODO
                     'print': _complete_print,
                     'with': _complete_print,
@@ -2866,6 +2880,7 @@ class CmdPrompt(object):
         self._orm_cache = []
         self._last_res = None
         self._eloc = {}
+        self._sudo_users_history = set()
         self._logger = logging.getLogger('bqi.cli')
         import readline
 
@@ -3479,6 +3494,70 @@ class CmdPrompt(object):
         except Exception, e:
             print "Failed orm execute:", e
             self._logger.debug("Failed %s():", afn, exc_info=True)
+            return
+
+        toprint = repr(res)
+        if len(toprint) < 128:
+            print "Res:", toprint
+        else:
+            print "Res is a %s. Use the print cmd to inspect it." % type(res)
+        self._last_res = res
+
+    def _cmd_sudo(self, user, *args):
+        """Perform an ORM operation as another user
+
+        Syntax:
+            sudo <user> method(args,...)
+
+        Only available against F3 servers that have the "sudo()" method
+        in "res.users" model. Note that server will likely require that
+        you are the admin user, in order to call `sudo()`.
+
+        This method is useful to test ORM calls like a less-priviledged
+        user would, exposing any ACL/permissions problems that user may
+        have.
+        """
+        if not self.cur_orm:
+            print "Must be at an ORM level!"
+            return
+        assert self.cur_orm_obj
+        astr = ' '.join(args).strip()
+        try:
+            paren_pos = astr.index('(')
+        except ValueError:
+            print "Syntax: foobar(...)"
+            return
+
+        afn = astr[:paren_pos]
+        aexpr = astr[paren_pos:]
+        sudo_fn = self._client.orm_proxy("res.users").sudo
+
+        def _functor(*args, **kwargs):
+            logger.debug("Trying orm execute: sudo( %s(%s) )", afn, aexpr)
+            if self.cur_res_id:
+                args = ([self.cur_res_id,],) + args
+            return sudo_fn(user, self.cur_orm, afn, args=args, kwargs=kwargs)
+
+        try:
+            res = eval(astr, {'this': self._last_res, afn: _functor}, {})
+            server._io_flush()
+            self._sudo_users_history.add(user)
+        except xmlrpclib.Fault, e:
+            if isinstance(e.faultCode, (int, long)):
+                e.faultCode = str(e.faultCode)
+            print 'xmlrpc exception: %s' % reduce_homedir(e.faultCode.strip())
+            print 'xmlrpc +: %s' % reduce_homedir(e.faultString.rstrip())
+            if 'Access Error' in e.faultCode:
+                # put blocked users in history, we may want to repeat calls
+                self._sudo_users_history.add(user)
+            return
+        except RpcException, e:
+            if e.args[-1] == 'Access Error':
+                self._sudo_users_history.add(user)
+            return
+        except Exception, e:
+            print "Failed orm sudo:", e
+            self._logger.debug("Failed sudo(%s()):", afn, exc_info=True)
             return
 
         toprint = repr(res)
