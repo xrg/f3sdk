@@ -3794,26 +3794,26 @@ class CmdPrompt(object):
             aexpr = ' '.join(args)
             res = self._eval_local(aexpr)
         else:
-            astr = ' '.join(args)
-            if not '(' in astr:
+            astr = ' '.join(args).strip()
+            try:
+                paren_pos = astr.index('(')
+            except ValueError:
                 print "Syntax: foobar(...)"
                 return
+
+            afn = astr[:paren_pos]
+            aexpr = astr[paren_pos:]
+
+            def _functor(*args, **kwargs):
+                logger.debug("Trying orm execute: %s(%s)", afn, aexpr)
+                fn = getattr(self.cur_orm_obj, afn)
+                if self.cur_res_id:
+                    return fn([self.cur_res_id,], *args, **kwargs)
+                else:
+                    return fn(*args, **kwargs)
+
             try:
-                astr = astr.strip()
-                afn, aexpr = astr.split('(',1)
-                aexpr = '(' + aexpr
-                aexpr = eval(aexpr, {'this': self._last_res}, {})
-            except Exception, e:
-                print 'Tried to eval "%s"' % aexpr
-                print "Exception:", e
-                return
-            if not isinstance(aexpr, tuple):
-                aexpr = (aexpr,)
-            if self.cur_res_id:
-                aexpr = ( [self.cur_res_id,],) + aexpr
-            try:
-                logger.debug("Trying orm execute: %s(%s)", afn, ', '.join(map(repr,aexpr)))
-                res = getattr(self.cur_orm_obj, afn)(*aexpr)
+                res = eval(astr, {'this': self._last_res, afn: _functor}, {})
                 server._io_flush()
             except xmlrpclib.Fault, e:
                 if isinstance(e.faultCode, (int, long)):
