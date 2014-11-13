@@ -108,7 +108,7 @@ Group: Databases
 Summary: {{ module.info.name }}
 AutoReqProv:       no
 Requires: python(abi) = %pyver
-Requires: openerp-server {% if rel.mainver %}>= {{ rel.mainver }}{% endif %}
+Requires: openerp-server {% if rel.mainver %} == {{ rel.mainver }}{% endif %}
 
 {% if name != 'openerp-addons' %}
 Provides: openerp-addons-{{ module.name }}
