@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 
 #
-# Copyright P. Christeas <xrg@hellug.gr> 2008-2013
+# Copyright P. Christeas <xrg@hellug.gr> 2008-2014
 #
 #
 # WARNING: This program as such is intended to be used by professional
