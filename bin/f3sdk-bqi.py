@@ -3583,7 +3583,8 @@ class CmdPrompt(object):
                 'write_uid': 20, 'write_date': 21,
                 'xmlid': 30,
                 'name': 40, 'date': 42, 'state': 42, 'description': 43,
-                'user_id': 44, 'company_id': 45
+                'user_id': 44, 'company_id': 45,
+                '...': '~~' # ascii after 'z'
                 }
         return sorted(tups, key=lambda x: coldict.get(x[0], x[0]))
 
@@ -3594,10 +3595,13 @@ class CmdPrompt(object):
     the root level.
         """
         model = None
+        verbose = False
         if self.cur_orm:
             model = self.cur_orm
             obj = self.cur_orm_obj
-            if args:
+            if args and args[0] == '+':
+                verbose = True
+            elif args:
                 if len(args) > 1:
                     print "Too many arguments!"
                     return
@@ -3612,6 +3616,9 @@ class CmdPrompt(object):
                 return
         elif args:
             model = args[0]
+            if model.endswith('+'):
+                verbose = True
+                model = model[:-1]
             obj = self._client.orm_proxy(model)
         else:
             print "ORM model must be specified!"
@@ -3646,7 +3653,15 @@ class CmdPrompt(object):
 
             if 'selection' in props:
                 sels = dict(props.pop('selection'))
-                rest.append('selection=(%s)' % (', ').join(map(ustr, sels.keys())))
+                sel_keys = sels.keys()
+                if (not verbose) and len(sels) > 7:
+                    more_len = len(sels) - 5
+                    for k in sel_keys[5:]:
+                        del sels[k]
+                    del sel_keys[5:]
+                    sels['...'] = '(%d entries truncated)' % more_len
+
+                rest.append('selection=(%s)' % (', ').join(map(ustr, sel_keys)))
                 selection_flds[field] = sels
 
             for attr in ('required', 'readonly', 'select', 'selectable', 'translate', 'view_load'):
@@ -3670,7 +3685,7 @@ class CmdPrompt(object):
             for field, sels in self._col_sorted(selection_flds.items()):
                 print_lexicon(sels, title="  for %s:" % field, indent=6)
             print
-        if help_flds:
+        if help_flds and verbose:
             print_lexicon(help_flds, title="Help Strings:", sort_fn=self._col_sorted)
             print
         if self._client.series in ('f3',):
