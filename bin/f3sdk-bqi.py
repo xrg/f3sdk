@@ -1102,7 +1102,11 @@ class local_server_thread(server_thread):
                 # Stray, fatal exception may appear on stderr
                 try:
                     traceb, excs = r.rsplit('\n',1)
-                    exc_type, exc_msg = excs.split(':',1)
+                    if ':' in excs:
+                        exc_type, exc_msg = excs.split(':',1)
+                    else:
+                        exc_type = 'Exception'
+                        exc_msg = excs
                     exc_msg = reduce_homedir(exc_msg)
                     traceb = reduce_homedir(traceb)
                     sdic = { 'Exception type': exc_type, 'Exception': exc_msg,
