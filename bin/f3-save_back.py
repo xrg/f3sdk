@@ -96,7 +96,7 @@ class UstrFeeder(object):
 
 class ModuleSaver(object):
     # _ws_re = re.compile(r'\s+')
-    def __init__(self, module, addons_dir):
+    def __init__(self, module, addons_dir, files_pattern=None, append_new=None):
         self.module = module
         self.addons_dir = addons_dir
         self.nfiles = 0
@@ -107,6 +107,8 @@ class ModuleSaver(object):
         self._proxies = {}
         self._model_fields = defaultdict(dict)
         self._do_touch = options.opts.touch
+        self._file_pattern = files_pattern
+        self._append_new = append_new
 
     def init(self):
         mfname = '?'
@@ -155,12 +157,18 @@ class ModuleSaver(object):
 
     def process_normal(self, dry_run=True):
         for key in ('init_xml', 'update_xml', 'data'):
-            for dfile in self.desc.get(key, []):
+            files = self.desc.get(key, [])
+            if self._file_pattern:
+                files = fmatch.filter(files, self._file_pattern)
+            for dfile in files:
                 self._process_file(dfile, dry_run)
 
     def process_demo(self, dry_run=True):
         for key in ('demo', 'demo_xml'):
-            for dfile in self.desc.get(key, []):
+            files = self.desc.get(key, [])
+            if self._file_pattern:
+                files = fmatch.filter(files, self._file_pattern)
+            for dfile in files:
                 self._process_file(dfile, dry_run)
 
     def _process_file_xml(self, fp, dry_run=True):
