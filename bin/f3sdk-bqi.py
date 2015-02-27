@@ -5251,19 +5251,16 @@ try:
                 scount = client.execute_common('root', 'get_sqlcount')
                 logger.info("SQL counter: %s", scount)
                 del scount
-                ret = True
             elif cmd == 'import':
                 ret = client.import_data_file(*args)
             elif cmd == 'login':
                 ret = client._login(*args)
             elif cmd == 'comment':
                 logger.info("Comment: %s", ' '.join(args))
-                ret = True
             elif cmd == 'get-times':
                 ost2 = client.get_ostimes(ost2)
                 logger.info("%s: User: %.3f, Sys: %.3f, Real: %.3f",  ' '.join(args),
                         ost2[0], ost2[1], ost2[4])
-                ret = True
             elif cmd == 'keep' or cmd == 'keep-running':
                 try:
                     logger.info("Server is running, script is paused. Press Ctrl+C to continue.")
