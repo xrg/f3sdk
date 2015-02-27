@@ -3640,7 +3640,7 @@ class CmdPrompt(object):
 
         assert obj
         logger.debug("Trying %s.fields_get()", model)
-        res = obj.fields_get()
+        res = obj.fields_get(False, {'detailed': verbose })
         server._io_flush()
 
         # Form the table
