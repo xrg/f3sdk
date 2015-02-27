@@ -2036,11 +2036,21 @@ class client_worker(object):
         log.info("Wizard ended in %d steps", i)
         return good_state
 
-    def upgrade_module(self, modules):
+    def upgrade_module(self, modules, only=False):
         server.state_dict['module-mode'] = 'upgrade'
         module_obj = self.orm_proxy('ir.module.module')
-        module_ids = module_obj.search([('name','in',modules)])
-        module_obj.button_upgrade(module_ids)
+
+        if only:
+            # A little dangerous, directly write the state and bypass
+            # dependencies algorithm.
+            if module_obj.search([('name', 'in', modules), ('state', 'not in', ('installed', 'to upgrade'))]):
+                self.log.error("Not all modules are installed: %r", modules)
+                return False
+            mids = module_obj.search([('name', 'in', modules), ('state', 'in', ('installed', 'to upgrade'))])
+            module_obj.write(mids, {'state': 'to upgrade'})
+        else:
+            module_ids = module_obj.search([('name','in',modules)])
+            module_obj.button_upgrade(module_ids)
 
         server.state_dict['severity'] = 'blocking'
         ret = self._modules_upgrade()
@@ -3370,7 +3380,11 @@ class CmdPrompt(object):
             elif cmd == 'install':
                 self._client.install_module(args)
             elif cmd == 'upgrade':
-                self._client.upgrade_module(args)
+                only = False
+                if args and args[0] == '--only':
+                    only = True
+                    args = args[1:]
+                self._client.upgrade_module(args, only=only)
             elif cmd == 'uninstall':
                 self._client.uninstall_module(args)
             elif cmd == 'refresh-list':
