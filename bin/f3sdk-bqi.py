@@ -5,7 +5,7 @@
 #    OpenERP, Open Source Management Solution
 #    Copyright (C) 2004-2009 Tiny SPRL (<http://tiny.be>).
 #    Copyright (C) 2010-2011 OpenERP SA. (http://www.openerp.com)
-#    Copyright (C) 2011-2014 P. Christeas <xrg@hellug.gr>
+#    Copyright (C) 2011-2015 P. Christeas <xrg@hellug.gr>
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -5002,7 +5002,7 @@ def parse_cmdargs(args):
                     'translation-load', 'translation-sync',
                     'get-sqlcount', 'import', 'login',
                     'keep', 'keep-running', 'inter', 'interactive',
-                    'comment', 'get-times' ):
+                    'comment', 'get-times', 'shell' ):
             parser.error("incorrect command: %s" % command)
             return
         args = args[1:]
@@ -5015,7 +5015,7 @@ def parse_cmdargs(args):
                         'translation-import', 'translation-export',
                         'translation-load', 'translation-sync',
                         'install-translation', 'import', 'login',
-                        'set-db', 'comment', 'get-times'):
+                        'set-db', 'comment', 'get-times', 'shell'):
             # Commands that take args
             cmd_args = []
             while args and args[0] != '--':
@@ -5275,6 +5275,16 @@ try:
                     logger.info("Server stopped, exiting")
                 except KeyboardInterrupt:
                     logger.info("Stopping after Ctrl+C")
+                    ret = False
+            elif cmd == 'shell':
+                try:
+                    logger.debug("Running shell command: %s...", args[:3])
+                    subprocess.check_call(args, shell=False)
+                except subprocess.CalledProcessError, ce:
+                    logger.error("Command \"%s\" exited with status %s", ce.cmd, ce.returncode)
+                    ret = False
+                except Exception:
+                    logger.warning("Cannot run shell command:", exc_info=True)
                     ret = False
             elif cmd == 'inter' or cmd == 'interactive':
                 logger.info("Interactive mode. Enjoy!")
