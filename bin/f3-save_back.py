@@ -355,7 +355,7 @@ class ModuleSaver(object):
                                 else:
                                     field.append(newxml)
                                     # try to align at the same indent as parent elem:
-                                    if field.text.endswith('    '):
+                                    if field.text and field.text.endswith('    '):
                                         newxml.tail = field.text[:-4]
                                     else:
                                         newxml.tail = field.text
