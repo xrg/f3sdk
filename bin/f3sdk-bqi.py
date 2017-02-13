@@ -1323,6 +1323,9 @@ class local_server_thread(server_thread):
 
     def restart_remote_logs(self):
         self.log.warning("No need to restart logs for a local server!")
+    
+    def check_remote_logs(self):
+        self.log.info("Local server logs are always connected.")
 
 class RemLogHandler(object):
     def __init__(self, parent):
@@ -1392,6 +1395,8 @@ class remote_server_thread(server_thread):
         server_thread.__init__(self)
         global opt, connect_dsn
         self._must_stop = False
+        self._logs_trans = None
+        self._logs_thread = None
         self.session = None
         self.port = opt.port
         if opt.url:
@@ -1462,14 +1467,19 @@ class remote_server_thread(server_thread):
         pass
 
     def setup_remote_logs(self, dsn):
-        self._logs_trans = None
         def _loop_get_logs():
-            try:
-                while not self._must_stop:
+            while not (self._must_stop or self._logs_trans is False):
+                if not self._logs_trans:
+                    time.sleep(10.0)
+                    continue
+                try:
                     self._logs_trans.process_next_logs()
-                self.log.info("Stopped remote logging")
-            except Exception:
-                self.log.warning("Remote logging stopped:", exc_info=True)
+                except Exception:
+                    self.log.warning("Remote logging error:", exc_info=True)
+                    self._logs_trans = None
+
+            self.log.info("Stopped remote logging")
+
         try:
             handler = RemLogHandler(self)
             trans = getTransportFromDSN(dsn, handler=handler)
@@ -1481,6 +1491,7 @@ class remote_server_thread(server_thread):
             # fire and forget
             thr.daemon = True
             thr.start()
+            self._logs_thread = thr
             self.log.info("Remote log watcher established for server")
         except Exception:
             self.log.warning("Cannot establish remote log watching:", exc_info=True)
@@ -1488,13 +1499,20 @@ class remote_server_thread(server_thread):
     def restart_remote_logs(self):
         global connect_dsn
 
-        if not self._logs_trans:
-            self.log.warning("No remote logs established")
+        self.log.info("Killing old transport")
+        self._logs_trans = False
+        if self._logs_thread:
+            self._logs_thread.join(20.0)
+        else:
+            time.sleep(1.0)
 
-        trans = getTransportFromDSN(connect_dsn, handler=RemLogHandler(self))
-        if trans:
-            self._logs_trans = trans
-            self.log.info("Restarted logs transport")
+        self.setup_remote_logs(connect_dsn)
+
+    def check_remote_logs(self):
+        if self._logs_trans:
+            self.log.info("Remote log transport is active")
+        else:
+            self.log.warning("Remote log transport is DEAD")
 
 class xml_session(object):
     """ This class resembles the openerp_libclient.session, using xmlrpclib
@@ -2859,7 +2877,7 @@ class CmdPrompt(object):
                                 'get garbage-stats',
                                 'get sqlstats', 'reset sqlstats',
                                 'stats', 'check',
-                                'restart-logs',
+                                'restart-logs', 'check-logs',
                                 'get last', # 'get ormlogs',
                                 #'restart',
                                 ],
@@ -3303,6 +3321,9 @@ class CmdPrompt(object):
                 ret = self._client.execute_common('root', 'reset_sql_stats')
             elif args[0] == 'restart-logs':
                 server.restart_remote_logs()
+                ret = True
+            elif args[0] == 'check-logs':
+                server.check_remote_logs()
                 ret = True
             else:
                 print "Unknown sub-command: server %s" % args[0]
