@@ -3,7 +3,7 @@
 ##############################################################################
 #
 #    F3, Open Source Management Solution
-#    Copyright (C) 2013 P. Christeas <xrg@hellug.gr>
+#    Copyright (C) 2013-2015 P. Christeas <xrg@hellug.gr>
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -38,6 +38,8 @@ def custom_options(parser):
     assert isinstance(parser, optparse.OptionParser)
 
     pgroup = optparse.OptionGroup(parser, "Iteration options")
+    pgroup.add_option('--all-modules', default=False, action='store_true',
+            help="Process ALL installed modules at this addons dir")
     pgroup.add_option('--force', default=False, action='store_true',
             help="Continue on errors")
     pgroup.add_option('--dry-run', default=False, action='store_true',
@@ -510,7 +512,21 @@ class ModuleSaver(object):
 try:
     nmodules = 0
     nfailures = 0
-    for module in options.args:
+    pmodules = []
+    if options.args:
+        pmodules = options.args
+    elif options.opts.all_modules:
+        imo = rpc.RpcProxy('ir.module.module')
+        ninstalled = 0
+        for res in imo.search_read([('state', '=', 'installed')], fields=('name',)):
+            ninstalled += 1
+            if os.path.isfile(os.path.join(options.opts.addons_dir, res['name'], '__openerp__.py')):
+                pmodules.append(res['name'])
+        log.info("Found %d/%d installed modules in %s", len(pmodules), ninstalled, options.opts.addons_dir)
+    else:
+        log.warning("You must specify some modules to process")
+
+    for module in pmodules:
         log.debug("Trying module %s", module)
         ms = ModuleSaver(module, options.opts.addons_dir)
         try:
