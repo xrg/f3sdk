@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 
 #
-# Copyright P. Christeas <xrg@linux.gr> 2008-2013
+# Copyright P. Christeas <xrg@linux.gr> 2008-2015
 #
 #
 # WARNING: This program as such is intended to be used by professional

@@ -14,12 +14,26 @@ Group:      Libraries
 BuildRequires:  python
 Requires:   python-jinja2 >= 2.4
 
+%package full
+Summary: Full-SDK metapackage for F3-ERP
+BuildArch:  noarch
+Requires:   %{name}-%{version}
+Requires:   postgresql-server >= 9.4
+Requires:   git-core
+
+
 %description
 A collection of scripts, utilities for F3-ERP (and OpenERP) developers
 or packagers.
 
 These scripts are NOT needed for a production server, but rather for the
 developer's workstation.
+
+
+%description full
+Full-blown development environment for OpenERP/F3.
+
+This will install the database server, git, etc. tools.
 
 
 %prep
@@ -49,6 +63,9 @@ cp -ar lib/* %{buildroot}%{f3sdkdir}/
 %doc README.md
 %dir %{f3sdkdir}
 %{f3sdkdir}/*
+
+%files full
+
 
 %changelog -f %{_sourcedir}/%{name}-changelog.gitrpm.txt
 
