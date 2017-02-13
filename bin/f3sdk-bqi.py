@@ -5,7 +5,7 @@
 #    OpenERP, Open Source Management Solution
 #    Copyright (C) 2004-2009 Tiny SPRL (<http://tiny.be>).
 #    Copyright (C) 2010-2011 OpenERP SA. (http://www.openerp.com)
-#    Copyright (C) 2011-2015 P. Christeas <xrg@hellug.gr>
+#    Copyright (C) 2011-2016 P. Christeas <xrg@hellug.gr>
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -681,6 +681,8 @@ class server_thread(threading.Thread):
                     'module-line': mobj.group(2),
                     'Message': 'Cursor not explicitly closed'})
 
+    _startup_deadline = 120.0
+
     def __init__(self):
         threading.Thread.__init__(self)
         self.is_running = False
@@ -921,16 +923,16 @@ class server_thread(threading.Thread):
         """
         self.state_dict['severity'] = 'blocking'
         self.start()
+        t = time.time()
         time.sleep(2.0)
-        t = 0
         while not self.is_ready:
             if not self.is_running:
                 raise ServerException("Server cannot start")
-            if t > 120:
+            if (time.time() - t) > self._startup_deadline:
+                self.log.error("Server has not started after %.2f sec, stopping..", time.time()-t)
                 self.stop()
                 raise ServerException("Server took too long to start")
-            time.sleep(1)
-            t += 1
+            time.sleep(3.0)
         if self._lports.get('HTTP') != str(self.port) \
                 and (self._lports.get('HTTP6') != str(self.port)):
             self.log.warning("server does not listen HTTP at port %s" % self.port)
@@ -1017,6 +1019,9 @@ class local_server_thread(server_thread):
 
         if config:
             self.args += [ '-c', config ]
+
+        if opt.startup_deadline:
+            self._startup_deadline = float(opt.startup_deadline)
 
         # TODO: secure transport, persistent ones.
         http_if = opt.http_interface or '127.0.0.1'
@@ -4683,6 +4688,7 @@ parser.add_option("-R", "--remote", action="store_true", default=False,
                     help="Remote mode. Connect to running OpenERP server, rather than launching one"),
 parser.add_option("-H", "--url", default=None,
                     help="URL of remote server to connect to"),
+parser.add_option('--startup-deadline', help="Seconds to wait for server startup")
 parser.add_option("-m", "--modules", dest="modules", action="append",
                      help="specify modules to install or check quality")
 parser.add_option("--addons-path", dest="addons_path", help="specify the addons path")
